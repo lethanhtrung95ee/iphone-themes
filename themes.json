@@ -1,0 +1,48 @@
+{
+  "version": "1.2.2",
+  "_note": "Sửa file này trên PC rồi bấm Commit + Push trong GitHub Desktop. Tăng version mỗi lần đổi để thấy trên widget.",
+
+  "weather": { "useGPS": true, "lat": 41.8781, "lon": -87.6298, "unit": "celsius" },
+
+  "apps": [
+    { "label": "MESSAGES", "sf": "message.fill",            "url": "sms://" },
+    { "label": "ZALO",     "sf": "bubble.left.and.bubble.right.fill", "url": "zalo://" },
+    { "label": "MESSENGER","sf": "ellipsis.bubble.fill",    "url": "fb-messenger://" },
+    { "label": "YOUTUBE",  "sf": "play.rectangle.fill",     "url": "youtube://" },
+    { "label": "MUSIC",    "sf": "music.note",              "url": "music://" },
+    { "label": "PHOTOS",   "sf": "photo.on.rectangle",      "url": "photos-redirect://" },
+    { "label": "MAPS",     "sf": "map.fill",                "url": "maps://" },
+    { "label": "SAFARI",   "sf": "safari.fill",             "url": "x-safari-https://www.google.com" }
+  ],
+
+  "themes": {
+    "fox": {
+      "name": "Neon Fox", "style": "cyber", "fx": "gears",
+      "rows": { "hud": 2, "launch": 3 },
+      "colors": { "accent": "#ff2bd6", "accent2": "#2ef2ff", "text": "#f6efff", "sub": "#c6b4f0",
+                  "panel": "#0a0418", "panelAlpha": 0.58 },
+      "labels": { "hud": "SYS.CORE", "launch": "QUICK.LAUNCH" }
+    },
+    "statue": {
+      "name": "Frieren · Tượng", "style": "fantasy", "fx": "petals",
+      "rows": { "hud": 1, "launch": 3 },
+      "colors": { "accent": "#f2d48a", "accent2": "#ffffff", "text": "#ffffff", "sub": "#eaf2ff",
+                  "panel": "#16325c", "panelAlpha": 0.30 },
+      "labels": { "hud": "Chương mới", "launch": "Hành trang" }
+    },
+    "forest": {
+      "name": "Frieren · Rừng", "style": "fantasy", "fx": "fairies",
+      "rows": { "hud": 1, "launch": 3 },
+      "colors": { "accent": "#f3dc8e", "accent2": "#d8f0b8", "text": "#fffbea", "sub": "#e6eccf",
+                  "panel": "#0e2410", "panelAlpha": 0.38 },
+      "labels": { "hud": "Lối rừng", "launch": "Hành trang" }
+    },
+    "mimic": {
+      "name": "Mimic", "style": "minimal", "fx": "gold",
+      "rows": { "hud": 1, "launch": 2 },
+      "colors": { "accent": "#f2e3a6", "accent2": "#bff3e0", "text": "#eefcf5", "sub": "#8fa59a",
+                  "panel": "#000000", "panelAlpha": 0.0 },
+      "labels": { "hud": "TREASURE?", "launch": "OPEN" }
+    }
+  }
+}
