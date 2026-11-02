@@ -1,0 +1,301 @@
+{
+  "version": "1.4.0",
+  "_note": "Sửa trên PC → tăng version (ở đây VÀ trong version.json) → Commit + Push bằng GitHub Desktop.",
+  "weather": {
+    "lat": 41.8781,
+    "lon": -87.6298,
+    "name": "Chicago (mặc định — cập nhật trong app: mục 2)",
+    "unit": "celsius"
+  },
+  "apps": [
+    {
+      "label": "MESSAGES",
+      "sf": "message.fill",
+      "url": "sms://"
+    },
+    {
+      "label": "ZALO",
+      "sf": "bubble.left.and.bubble.right.fill",
+      "url": "zalo://",
+      "fallback": "https://zalo.me",
+      "unsure": true
+    },
+    {
+      "label": "MESSENGER",
+      "sf": "ellipsis.bubble.fill",
+      "url": "fb-messenger://",
+      "fallback": "https://m.me"
+    },
+    {
+      "label": "YOUTUBE",
+      "sf": "play.rectangle.fill",
+      "url": "youtube://",
+      "fallback": "https://www.youtube.com"
+    },
+    {
+      "label": "MUSIC",
+      "sf": "music.note",
+      "url": "music://",
+      "fallback": "https://music.apple.com"
+    },
+    {
+      "label": "PHOTOS",
+      "sf": "photo.on.rectangle",
+      "url": "photos-redirect://",
+      "fallback": "shortcuts://run-shortcut?name=Mo%20Anh",
+      "unsure": true
+    },
+    {
+      "label": "MAPS",
+      "sf": "map.fill",
+      "url": "maps://",
+      "fallback": "https://maps.apple.com"
+    },
+    {
+      "label": "SAFARI",
+      "sf": "safari.fill",
+      "url": "x-safari-https://www.google.com",
+      "fallback": "https://www.google.com",
+      "unsure": true
+    }
+  ],
+  "themes": {
+    "fox": {
+      "name": "Neon Fox",
+      "style": "cyber",
+      "fx": "gears",
+      "rows": {
+        "hud": 2,
+        "launch": 3
+      },
+      "colors": {
+        "accent": "#ff2bd6",
+        "accent2": "#2ef2ff",
+        "text": "#f6efff",
+        "sub": "#c6b4f0",
+        "panel": "#0a0418",
+        "panelAlpha": 0.58
+      },
+      "labels": {
+        "hud": "SYS.CORE",
+        "launch": "QUICK.LAUNCH"
+      },
+      "voice": {
+        "morning": [
+          "Boot xong. Chào buổi sáng, runner.",
+          "06:00 hệ thống online. Cà phê chưa?",
+          "Thành phố vừa thức. Mình cũng vậy."
+        ],
+        "noon": [
+          "Giữa trưa. Nạp năng lượng đi.",
+          "Đèn neon tắt bớt rồi, đi ăn thôi."
+        ],
+        "afternoon": [
+          "Chiều rồi. Còn task nào chưa xử?",
+          "Trời chiều, mạng vẫn chạy ổn."
+        ],
+        "evening": [
+          "Đèn neon đã bật. Giờ của chúng ta.",
+          "Tối rồi. Thành phố bắt đầu sống."
+        ],
+        "night": [
+          "Khuya rồi. Ngủ đi, tôi canh cho.",
+          "02:00. Chỉ còn tôi và đèn neon."
+        ],
+        "rain": [
+          "Mưa axit đấy. Mang áo khoác vào.",
+          "Trời mưa. Đèn neon đẹp nhất lúc này."
+        ],
+        "lowbat": [
+          "PWR {b}%. Cắm sạc, không tôi tắt đèn.",
+          "Cảnh báo: năng lượng còn {b}%."
+        ],
+        "charging": [
+          "Đang nạp năng lượng... {b}%",
+          "Kết nối nguồn ổn định. {b}%."
+        ],
+        "event": [
+          "{t} có lịch: {e}. Đừng trễ.",
+          "Nhiệm vụ lúc {t}: {e}."
+        ]
+      }
+    },
+    "statue": {
+      "name": "Frieren · Tượng",
+      "style": "fantasy",
+      "fx": "petals",
+      "rows": {
+        "hud": 1,
+        "launch": 3
+      },
+      "colors": {
+        "accent": "#f2d48a",
+        "accent2": "#ffffff",
+        "text": "#ffffff",
+        "sub": "#eaf2ff",
+        "panel": "#16325c",
+        "panelAlpha": 0.3
+      },
+      "labels": {
+        "hud": "Chương mới",
+        "launch": "Hành trang"
+      },
+      "voice": {
+        "morning": [
+          "Một ngày mới của hành trình.",
+          "Nắng sớm. Đi tiếp thôi."
+        ],
+        "noon": [
+          "Nghỉ chân một chút cũng được.",
+          "Trưa rồi. Ăn gì đó đi."
+        ],
+        "afternoon": [
+          "Gió chiều mát. Đi chậm thôi.",
+          "Thời gian trôi nhanh hơn ta nghĩ."
+        ],
+        "evening": [
+          "Chiều tà rồi. Hôm nay thế là đủ.",
+          "Trời tối dần. Về thôi."
+        ],
+        "night": [
+          "Sao lên rồi. Ngủ ngon nhé.",
+          "Đêm yên tĩnh. Mai lại đi tiếp."
+        ],
+        "rain": [
+          "Mưa rồi. Hôm nay đi chậm thôi.",
+          "Hoa vẫn nở dưới mưa đấy."
+        ],
+        "lowbat": [
+          "Mana còn {b}%. Nghỉ một chút đi.",
+          "Phép thuật sắp cạn: {b}%."
+        ],
+        "charging": [
+          "Đang hồi mana... {b}%",
+          "Nghỉ ngơi để hồi sức. {b}%."
+        ],
+        "event": [
+          "Lúc {t}: {e}. Nhớ nhé.",
+          "Hẹn lúc {t}: {e}."
+        ]
+      }
+    },
+    "forest": {
+      "name": "Frieren · Rừng",
+      "style": "fantasy",
+      "fx": "fairies",
+      "rows": {
+        "hud": 1,
+        "launch": 3
+      },
+      "colors": {
+        "accent": "#f3dc8e",
+        "accent2": "#d8f0b8",
+        "text": "#fffbea",
+        "sub": "#e6eccf",
+        "panel": "#0e2410",
+        "panelAlpha": 0.38
+      },
+      "labels": {
+        "hud": "Lối rừng",
+        "launch": "Hành trang"
+      },
+      "voice": {
+        "morning": [
+          "Rừng thức dậy rồi. Chào buổi sáng.",
+          "Tinh linh đang chào bạn đấy."
+        ],
+        "noon": [
+          "Bóng cây mát. Nghỉ trưa đi.",
+          "Nắng xuyên qua lá. Đẹp nhỉ."
+        ],
+        "afternoon": [
+          "Lối rừng còn dài. Cứ thong thả.",
+          "Chiều rồi. Nghe tiếng lá không?"
+        ],
+        "evening": [
+          "Đom đóm bắt đầu bay rồi.",
+          "Rừng chuyển màu vàng. Về thôi."
+        ],
+        "night": [
+          "Rừng ngủ rồi. Bạn cũng ngủ đi.",
+          "Đêm nay nhiều sao lắm."
+        ],
+        "rain": [
+          "Mưa trong rừng. Nghe dễ chịu ghê.",
+          "Lá ướt hết rồi. Cẩn thận trơn."
+        ],
+        "lowbat": [
+          "Mana còn {b}%. Tìm chỗ nghỉ đi.",
+          "Tinh linh mệt rồi: {b}%."
+        ],
+        "charging": [
+          "Hồi sức bên gốc cây... {b}%",
+          "Đang nạp mana. {b}%."
+        ],
+        "event": [
+          "Lúc {t}: {e}. Đừng lạc đường.",
+          "Hẹn lúc {t}: {e}."
+        ]
+      }
+    },
+    "mimic": {
+      "name": "Mimic",
+      "style": "minimal",
+      "fx": "gold",
+      "rows": {
+        "hud": 1,
+        "launch": 2
+      },
+      "colors": {
+        "accent": "#f2e3a6",
+        "accent2": "#bff3e0",
+        "text": "#eefcf5",
+        "sub": "#8fa59a",
+        "panel": "#000000",
+        "panelAlpha": 0.0
+      },
+      "labels": {
+        "hud": "TREASURE?",
+        "launch": "OPEN"
+      },
+      "voice": {
+        "morning": [
+          "Sáng rồi. Rương có vàng thật mà...",
+          "Lại gần đi. Không cắn đâu."
+        ],
+        "noon": [
+          "Đói quá. Có ai mở rương không?",
+          "Trưa rồi. Tôi cũng muốn ăn."
+        ],
+        "afternoon": [
+          "Chiều buồn. Mở tôi ra đi.",
+          "Vàng thật đấy. Thử xem."
+        ],
+        "evening": [
+          "Tối rồi. Ai đi lạc vào đây không?",
+          "Rương sáng lấp lánh lúc tối đó."
+        ],
+        "night": [
+          "Khuya rồi. Tôi vẫn đợi.",
+          "Ngủ đi. Vàng không chạy đâu."
+        ],
+        "rain": [
+          "Mưa. Rương ướt mất rồi.",
+          "Trời mưa, vàng càng sáng."
+        ],
+        "lowbat": [
+          "Vàng còn {b}%... sắp hết rồi.",
+          "Đói năng lượng: {b}%."
+        ],
+        "charging": [
+          "Đang nạp vàng... {b}%",
+          "Rương đang đầy dần: {b}%."
+        ],
+        "event": [
+          "{t}: {e}. Đừng để tôi ăn mất.",
+          "Còn lịch lúc {t}: {e}."
+        ]
+      }
+    }
+  }
+}

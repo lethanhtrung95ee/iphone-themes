@@ -1,16 +1,20 @@
 // ThemeKit engine — chạy bên trong loader "Theme" trên iPhone.
 // Không sửa trực tiếp trên điện thoại: sửa trên PC rồi push lên GitHub.
 // Biến ENV do loader truyền vào: { themes, src, dir, args, config, loaderVersion }
-const ENGINE_VERSION = "1.2.0";
+const ENGINE_VERSION = "1.4.0";
 const T = ENV.themes;
 const fm = FileManager.local();
 const DIR = ENV.dir;
 
-// Vị trí widget trên màn hình chính iPhone 15 Pro (ảnh 1179x2556, pixel)
+// Vị trí widget trên màn hình chính, đơn vị pixel của ảnh chụp màn hình.
+// Khóa = "rộng x cao" của Device.screenResolution(). Máy không có trong bảng sẽ bị báo lỗi, không cắt bừa.
 const POS = {
-  2556: { small: 474, medium: 1017, large: 1062, left: 81, right: 624, rows: [240, 828, 1416] },
+  "1179x2556": { model: "iPhone 15 Pro", small: 474, medium: 1017, left: 81, right: 624, rows: [240, 828, 1416] },
+  "1290x2796": { model: "iPhone 15 Pro Max", small: 510, medium: 1092, left: 99, right: 681, rows: [282, 918, 1554] },
 };
-const PHONE_H = 2556, PHONE_W = 1179;
+const ROW_NAMES = { top: 1, tren: 1, "1": 1, middle: 2, giua: 2, "2": 2, bottom: 3, duoi: 3, "3": 3 };
+const ROW_LABEL = { 1: "top", 2: "middle", 3: "bottom" };
+const ROW_VI = { 1: "hàng trên", 2: "hàng giữa", 3: "hàng dưới" };
 
 // ---------------- tiện ích ----------------
 function C(hex, a) { return new Color(hex, a === undefined ? 1 : a); }
@@ -20,36 +24,50 @@ function bgPath(theme, size, row) { return p(DIR, "bg", theme, size + "-" + row 
 function readJSON(name, dflt) { try { return JSON.parse(fm.readString(p(DIR, name))); } catch (e) { return dflt; } }
 function writeJSON(name, v) { try { fm.writeString(p(DIR, name), JSON.stringify(v)); } catch (e) {} }
 function pad2(n) { return String(n).padStart(2, "0"); }
+function hhmm(ms) { const d = new Date(ms); return pad2(d.getHours()) + ":" + pad2(d.getMinutes()); }
 async function withTimeout(promise, ms, fallback) {
   let t; const timer = new Promise(res => { t = Timer.schedule(ms, false, () => res(fallback)); });
   const r = await Promise.race([promise.catch(() => fallback), timer]); try { t.invalidate(); } catch (e) {} return r;
 }
+// cài đặt riêng trên máy (font, URL dự phòng, chỉnh lệch nền)
+function settings() { return readJSON("settings.json", { fontMode: "serif", appOverride: {}, offset: { dx: 0, dy: 0 } }); }
+function saveSettings(v) { writeJSON("settings.json", v); }
+function deviceKey() { const r = Device.screenResolution(); return Math.round(r.width) + "x" + Math.round(r.height); }
+function devicePos() { return POS[deviceKey()] || null; }
+// hạt giống ngẫu nhiên theo NGÀY (không đổi theo phút, vì iOS tự quyết lúc làm mới)
+function daySeed(extra) { const d = new Date(); return (d.getFullYear() * 1000 + d.getMonth() * 40 + d.getDate()) ^ hashStr(extra || ""); }
+
+// Font có chân + dự phòng font hệ thống (chọn trong app: Kiểm tra font chữ)
+let _fontMode = null;
+function SERIF(name, size) {
+  if (_fontMode === null) _fontMode = settings().fontMode || "serif";
+  if (_fontMode === "system") {
+    if (/Italic/.test(name)) return Font.italicSystemFont(size);
+    if (/SemiBold|Bold/.test(name)) return Font.semiboldSystemFont(size);
+    return /Didot/.test(name) ? Font.lightSystemFont(size) : Font.systemFont(size);
+  }
+  return new Font(name, size);
+}
 
 // ---------------- dữ liệu ----------------
-async function getLocation() {
+// Widget KHÔNG dùng GPS. Vị trí lấy từ lần cập nhật trong app (loc.json), nếu chưa có thì dùng tọa độ trong themes.json.
+function getLocation() {
   const W = T.weather || {};
   const last = readJSON("loc.json", null);
-  if (W.useGPS) {
-    try {
-      Location.setAccuracyToThreeKilometers();
-      const loc = await withTimeout(Location.current(), 4, null);
-      if (loc && loc.latitude) { writeJSON("loc.json", { lat: loc.latitude, lon: loc.longitude }); return { lat: loc.latitude, lon: loc.longitude }; }
-    } catch (e) {}
-    if (last) return last;
-  }
-  return { lat: W.lat, lon: W.lon };
+  return last && last.lat ? last : { lat: W.lat, lon: W.lon, name: W.name || "" };
 }
 
 async function getWeather() {
   const cache = readJSON("weather.json", null);
-  if (cache && Date.now() - cache.at < 20 * 60000) return Object.assign({ offline: false }, cache);
+  if (cache && Date.now() - cache.at < 30 * 60000) return Object.assign({ offline: false }, cache);
   try {
-    const L = await getLocation();
+    const L = getLocation();
     const unit = (T.weather && T.weather.unit) === "fahrenheit" ? "fahrenheit" : "celsius";
     const r = new Request("https://api.open-meteo.com/v1/forecast?latitude=" + L.lat.toFixed(3) + "&longitude=" + L.lon.toFixed(3) +
       "&current=temperature_2m,weather_code,relative_humidity_2m&hourly=temperature_2m&forecast_hours=12&daily=precipitation_probability_max&forecast_days=1&timezone=auto&temperature_unit=" + unit);
-    r.timeoutInterval = 6;
-    const j = await r.loadJSON();
+    r.timeoutInterval = 5;
+    const j = await withTimeout(r.loadJSON(), 6, null);
+    if (!j || !j.current) throw new Error("no data");
     const w = { temp: j.current.temperature_2m, code: j.current.weather_code, hum: j.current.relative_humidity_2m,
       rain: (j.daily && j.daily.precipitation_probability_max) ? j.daily.precipitation_probability_max[0] : null,
       hourly: (j.hourly && j.hourly.temperature_2m) ? j.hourly.temperature_2m.slice(0, 12) : [], at: Date.now() };
@@ -321,6 +339,45 @@ const STYLE = {
   },
 };
 
+// ---------------- ngữ cảnh: giờ, thời tiết, pin, lịch ----------------
+function context(d) {
+  const h = d.now.getHours();
+  const period = h >= 5 && h < 11 ? "morning" : h < 14 && h >= 11 ? "noon" : h >= 14 && h < 18 ? "afternoon" : h >= 18 && h < 22 ? "evening" : "night";
+  const code = d.weather ? d.weather.code : -1;
+  const rainy = [51, 53, 55, 56, 57, 61, 63, 65, 66, 67, 80, 81, 82, 95, 96, 99].indexOf(code) >= 0;
+  const bat = Math.round((d.battery || 0) * 100);
+  let soon = null;
+  if (d.ev) { const [hh, mm] = d.ev.time.split(":").map(Number); const t = new Date(d.now); t.setHours(hh, mm, 0, 0); const diff = (t - d.now) / 60000; if (diff >= -5 && diff <= 60) soon = d.ev; }
+  return { period, rainy, night: period === "night" || period === "evening", lowBat: bat <= 20 && !d.charging, charging: !!d.charging, bat, soon };
+}
+function voiceLine(th, cx, rnd) {
+  const V = th.voice || {}; let key = cx.period;
+  if (cx.lowBat) key = "lowbat"; else if (cx.soon) key = "event"; else if (cx.charging && rnd() < 0.5) key = "charging"; else if (cx.rainy && rnd() < 0.7) key = "rain";
+  const pool = V[key] && V[key].length ? V[key] : (V[cx.period] || [""]);
+  const line0 = pool[Math.floor(rnd() * pool.length)] || "";
+  return line0.replace("{b}", cx.bat).replace("{t}", cx.soon ? cx.soon.time : "").replace("{e}", cx.soon ? cx.soon.title : "");
+}
+// lớp phủ phản ứng theo ngữ cảnh
+function react(c, W, H, k, th, cx, rnd) {
+  const col = th.colors;
+  if (cx.night) { c.setFillColor(C("#000010", cx.period === "night" ? 0.22 : 0.1)); c.fillRect(new Rect(0, 0, W, H)); }
+  if (cx.period === "morning") { [[200, 0.05], [120, 0.07], [60, 0.08]].forEach(([r, a]) => dot(c, 0, 0, r * k, "#ffcf8a", a)); }
+  if (cx.night && th.style === "fantasy") {
+    for (let i = 0; i < 18; i++) { const p0 = edgePoint(W, H, k, rnd, 4 + rnd() * 20); dot(c, p0.x, p0.y, (0.5 + rnd() * 0.8) * k, "#ffffff", 0.5 + rnd() * 0.5); }
+    drawMoon(c, W - 22 * k, 20 * k, 8 * k, moonPhase(new Date()), C("#fff6d6", 0.95), C("#000000", 0.25));
+  }
+  if (cx.night && th.style === "cyber") { // đèn neon chập chờn: vài đoạn viền tối đi
+    for (let i = 0; i < 3; i++) { const x = 30 * k + rnd() * (W - 80 * k); c.setFillColor(C("#000000", 0.75)); c.fillRect(new Rect(x, 0, (14 + rnd() * 30) * k, 4 * k)); }
+  }
+  if (cx.rainy) {
+    c.setStrokeColor(C(th.style === "cyber" ? col.accent2 : "#dfe9ff", 0.22)); c.setLineWidth(0.8 * k);
+    for (let i = 0; i < 46; i++) { const x = rnd() * W, y = rnd() * H, l = (8 + rnd() * 14) * k; line(c, x, y, x - l * 0.25, y + l); }
+  }
+  if (cx.lowBat) {
+    [[8, 0.08], [4, 0.16], [1.5, 0.6]].forEach(([wd, a]) => { c.setStrokeColor(C("#ff2a2a", a)); c.setLineWidth(wd * k); const pa = new Path(); pa.addRect(new Rect(2 * k, 2 * k, W - 4 * k, H - 4 * k)); c.addPath(pa); c.strokePath(); });
+  }
+}
+
 function buildBackground(themeId, th, kind, row, data) {
   const scale = Device.screenScale();
   const path = bgPath(themeId, "medium", row);
@@ -333,9 +390,10 @@ function buildBackground(themeId, th, kind, row, data) {
   else { c.setFillColor(C(th.colors.panel, 1)); c.fillRect(new Rect(0, 0, W, H)); }
   STYLE[th.style].frame(c, W, H, k, th, kind);
   if (th.fx && FX[th.fx]) {
-    const seed = Math.floor(Date.now() / (15 * 60000)) ^ hashStr(themeId + kind);
+    const seed = daySeed(themeId + kind);
     try { FX[th.fx](c, W, H, k, th, kind, makeRng(seed), data || {}); } catch (e) { console.log("fx: " + e); }
   }
+  if (data && data.now) { try { react(c, W, H, k, th, context(data), makeRng(daySeed(themeId))); } catch (e) { console.log("react: " + e); } }
   if (kind === "hud" && data) { try { HUD[th.style](c, W, H, k, th, data); } catch (e) { console.log("hud: " + e); } }
   return { img: c.getImage(), missing: !slice, wPt: W / k, hPt: H / k };
 }
@@ -381,7 +439,7 @@ function chartPts(vals, x, y, w, h) {
 
 const HUD_FONT = {
   cyber: { num: k => Font.boldMonospacedSystemFont(8.5 * k), lab: k => Font.boldMonospacedSystemFont(6.5 * k), big: k => Font.lightSystemFont(25 * k), tiny: k => Font.mediumMonospacedSystemFont(6.5 * k), glitch: k => Font.boldMonospacedSystemFont(9 * k) },
-  fantasy: { num: k => new Font("Didot", 10 * k), lab: k => new Font("Baskerville-Italic", 8.5 * k), big: k => new Font("Didot", 26 * k), tiny: k => new Font("Baskerville", 7.5 * k) },
+  fantasy: { num: k => SERIF("Didot", 10 * k), lab: k => SERIF("Baskerville-Italic", 8.5 * k), big: k => SERIF("Didot", 26 * k), tiny: k => SERIF("Baskerville", 7.5 * k) },
   minimal: { num: k => Font.mediumMonospacedSystemFont(8.5 * k), lab: k => Font.regularMonospacedSystemFont(6.5 * k), big: k => Font.thinSystemFont(25 * k), tiny: k => Font.regularMonospacedSystemFont(6.5 * k) },
 };
 
@@ -404,7 +462,7 @@ function hudRight(c, W, H, k, th, d, look) {
       dtext(c, look.hiLo(hi, lo), tx, 64 * k, RW * k - 52 * k, 10 * k, F.tiny(k), C(col.sub, 0.9), "l");
     }
   } else dtext(c, look.noWeather, tx, 30 * k, 140 * k, 12 * k, F.tiny(k), C(col.sub), "l");
-  if (w && w.offline) dtext(c, "cache", W - 52 * k, H - 25 * k, 38 * k, 9 * k, F.tiny(k), C("#ff7a7a"), "r");
+  if (w && w.offline) dtext(c, "cập nhật " + hhmm(w.at), W - 92 * k, H - 25 * k, 78 * k, 9 * k, F.tiny(k), C("#ff9a9a"), "r");
   dtext(c, "v" + T.version, W - 52 * k, H - 16 * k, 38 * k, 9 * k, F.tiny(k), C(col.sub, 0.55), "r");
 }
 
@@ -418,7 +476,7 @@ const HUD = {
       const pa = new Path(); for (let i = 0; i <= 6; i++) { const a = Math.PI / 6 + i * Math.PI / 3, pt = new Point(x + Math.cos(a) * hs, y + Math.sin(a) * hs); i ? pa.addLine(pt) : pa.move(pt); } c.addPath(pa); c.strokePath();
     }
     // dải quét sáng
-    const sy = (20 + (d.now.getMinutes() % 15) / 15 * (H / k - 40)) * k;
+    const sy = (20 + (makeRng(daySeed("scan"))()) * (H / k - 40)) * k;
     [[10, 0.03], [5, 0.05], [1.5, 0.12]].forEach(([h, a]) => { c.setFillColor(C(col.accent2, a)); c.fillRect(new Rect(3 * k, sy - h * k / 2, W - 6 * k, h * k)); });
     // nhãn glitch
     const lab = "◢ " + th.labels.hud;
@@ -484,8 +542,8 @@ function fonts(style) {
     small: Font.regularMonospacedSystemFont(9), big: Font.lightSystemFont(28), body: Font.mediumMonospacedSystemFont(10), icon: Font.boldMonospacedSystemFont(8),
   };
   if (style === "fantasy") return {
-    label: new Font("Didot-Italic", 13), time: new Font("Didot", 42), date: new Font("Baskerville-Italic", 12),
-    small: new Font("Baskerville", 10), big: new Font("Didot", 28), body: new Font("Baskerville", 12), icon: new Font("Baskerville-SemiBold", 9),
+    label: SERIF("Didot-Italic", 13), time: SERIF("Didot", 42), date: SERIF("Baskerville-Italic", 12),
+    small: SERIF("Baskerville", 10), big: SERIF("Didot", 28), body: SERIF("Baskerville", 12), icon: SERIF("Baskerville-SemiBold", 9),
   };
   return {
     label: Font.mediumMonospacedSystemFont(9), time: Font.thinSystemFont(48), date: Font.regularMonospacedSystemFont(10),
@@ -535,18 +593,24 @@ async function hudWidget(themeId, th, row) {
 }
 
 // ---------------- widget nút mở app ----------------
-function launchWidget(themeId, th, row) {
+async function launchWidget(themeId, th, row) {
   const st = th.style, col = th.colors, F = fonts(st);
-  const bg = buildBackground(themeId, th, "launch", row);
+  const [weather, ev] = await Promise.all([getWeather(), getNextEvent()]);
+  const data = { weather, ev, now: new Date(), battery: Device.batteryLevel(), charging: Device.isCharging() };
+  const bg = buildBackground(themeId, th, "launch", row, data);
+  const say = voiceLine(th, context(data), makeRng(daySeed(themeId + "voice" + context(data).period)));
   const g = launchGrid(bg.wPt, bg.hPt);
   const w = new ListWidget(); w.backgroundImage = bg.img; w.setPadding(0, 0, 0, 0);
-  w.refreshAfterDate = new Date(Date.now() + 6 * 3600000);
+  w.refreshAfterDate = new Date(Date.now() + 15 * 60000);
   const root = w.addStack(); root.layoutVertically(); root.size = new Size(bg.wPt, bg.hPt);
   const head = root.addStack(); head.size = new Size(bg.wPt, g.headH); head.setPadding(6, 18, 0, 18); head.centerAlignContent();
-  txt(head, st === "cyber" ? "◢ " + th.labels.launch : th.labels.launch, F.label, C(col.accent), st === "fantasy" ? C("#000", 0.5) : C(col.accent, 0.9));
+  const sayTxt = st === "cyber" ? "◢ " + say : st === "minimal" ? "> " + say : "“" + say + "”";
+  const sf = st === "fantasy" ? SERIF("Didot-Italic", 12) : st === "cyber" ? Font.boldMonospacedSystemFont(9.5) : Font.mediumMonospacedSystemFont(9.5);
+  txt(head, say ? sayTxt : th.labels.launch, sf, C(st === "cyber" ? col.text : col.accent), st === "fantasy" ? C("#000", 0.6) : C(col.accent, 0.9));
   head.addSpacer();
   txt(head, bg.missing ? "chưa cài nền" : "", F.small, C("#ff5a5a"));
-  const apps = (T.apps || []).slice(0, 8);
+  const ov = settings().appOverride || {};
+  const apps = (T.apps || []).slice(0, 8).map(a => Object.assign({}, a, ov[a.label] ? { url: ov[a.label] } : {}));
   for (let r = 0; r < 2; r++) {
     const rs = root.addStack(); rs.size = new Size(bg.wPt, g.rowH); rs.setPadding(0, g.padX, 0, g.padX);
     for (let c = 0; c < 4; c++) {
@@ -582,66 +646,148 @@ function parseParam(s) {
   const th = T.themes[themeId];
   if (!th) throw new Error("Không có theme '" + themeId + "'. Có: " + Object.keys(T.themes).join(", "));
   const kind = parts[1] === "launch" || parts[1] === "app" || parts[1] === "apps" ? "launch" : "hud";
-  const row = parseInt(parts[2] || th.rows[kind], 10);
-  return { themeId, th, kind, row: row >= 1 && row <= 3 ? row : th.rows[kind] };
+  const row = parts[2] ? ROW_NAMES[parts[2]] : th.rows[kind];
+  if (!row) throw new Error("Vị trí '" + parts[2] + "' không hợp lệ. Dùng top, middle hoặc bottom.");
+  return { themeId, th, kind, row };
 }
 
 async function makeWidget(param) {
   const q = parseParam(param);
-  return q.kind === "launch" ? launchWidget(q.themeId, q.th, q.row) : await hudWidget(q.themeId, q.th, q.row);
+  return q.kind === "launch" ? await launchWidget(q.themeId, q.th, q.row) : await hudWidget(q.themeId, q.th, q.row);
 }
 
 // ---------------- cài đặt trong app ----------------
 async function pick(title, msg, options) {
   const a = new Alert(); a.title = title; if (msg) a.message = msg;
   options.forEach(o => a.addAction(o)); a.addCancelAction("Huỷ");
-  const i = await a.presentSheet(); return i;
+  return await a.presentSheet();
 }
 async function info(title, msg) { const a = new Alert(); a.title = title; a.message = msg; a.addAction("OK"); await a.present(); }
+async function confirm(title, msg, yes) { const a = new Alert(); a.title = title; a.message = msg; a.addAction(yes || "Tiếp tục"); a.addCancelAction("Huỷ"); return (await a.present()) === 0; }
+function shotPath(id) { return p(DIR, "shots", id + ".jpg"); }
 
-async function installBackground() {
-  const ids = Object.keys(T.themes);
-  const i = await pick("Cài nền cho theme", "Chọn theme, rồi chọn đúng ảnh nền của theme đó trong app Ảnh.", ids.map(id => T.themes[id].name));
-  if (i < 0) return;
-  const id = ids[i];
-  const img = await Photos.fromLibrary();
-  const sw = img.size.width, sh = img.size.height;
-  if (Math.abs(sw / sh - PHONE_W / PHONE_H) > 0.01) { await info("Ảnh không đúng khổ", "Ảnh " + Math.round(sw) + "×" + Math.round(sh) + ". Cần ảnh nền 1179×2556 đã gửi kèm."); return; }
-  const f = sw / PHONE_W, P = POS[PHONE_H];
+// Cắt 3 hàng widget Vừa từ ẢNH CHỤP MÀN HÌNH trang trống (chế độ rung icon).
+function cropRows(id, img, P) {
+  const o = settings().offset || { dx: 0, dy: 0 };
   ensureDir(p(DIR, "bg", id));
   for (let r = 1; r <= 3; r++) {
-    const y = P.rows[r - 1];
-    fm.writeImage(bgPath(id, "medium", r), cropFrom(img, P.left * f, y * f, P.medium * f, P.small * f));
+    fm.writeImage(bgPath(id, "medium", r), cropFrom(img, P.left + o.dx, P.rows[r - 1] + o.dy, P.medium, P.small));
   }
-  await info("Xong", "Đã cắt nền cho " + T.themes[id].name + ".\nWidget dùng:\n• " + id + ":hud:" + T.themes[id].rows.hud + "  (Vừa, hàng " + T.themes[id].rows.hud + ")\n• " + id + ":launch:" + T.themes[id].rows.launch + "  (Vừa, hàng " + T.themes[id].rows.launch + ")");
 }
 
-async function askPermissions() {
-  try { await CalendarEvent.today([]); } catch (e) {}
-  try { Location.setAccuracyToThreeKilometers(); await Location.current(); } catch (e) {}
-  await info("Quyền truy cập", "Đã yêu cầu quyền Lịch và Vị trí. Nếu đã bấm Không cho phép, vào Cài đặt → Scriptable để bật lại.");
+async function installBackground() {
+  const P = devicePos();
+  if (!P) { await info("Máy chưa được hỗ trợ", "Màn hình " + deviceKey() + " không có trong bảng vị trí. Gửi con số này cho người làm theme để bổ sung. Chưa cắt gì cả."); return; }
+  const ids = Object.keys(T.themes);
+  const i = await pick("Cài nền cho theme", "Máy: " + P.model + " (" + deviceKey() + ")", ids.map(id => T.themes[id].name));
+  if (i < 0) return;
+  const id = ids[i];
+  const ok = await confirm("Chuẩn bị ảnh chụp màn hình",
+    "1. Đặt hình nền " + T.themes[id].name + " cho màn hình chính.\n" +
+    "2. Vuốt tới một TRANG TRỐNG, nhấn giữ chỗ trống cho icon rung lên.\n" +
+    "3. Chụp màn hình (nút nguồn + tăng âm lượng).\n" +
+    "4. Quay lại đây, bấm Tiếp tục và chọn ảnh vừa chụp.", "Chọn ảnh chụp");
+  if (!ok) return;
+  const img = await Photos.fromLibrary();
+  const w = Math.round(img.size.width), h = Math.round(img.size.height), sc = Device.screenScale();
+  let src = img;
+  if (w + "x" + h !== deviceKey()) {
+    if (Math.round(w * sc) + "x" + Math.round(h * sc) === deviceKey()) {
+      const c = new DrawContext(); c.size = new Size(w * sc, h * sc); c.respectScreenScale = false; c.drawImageInRect(img, new Rect(0, 0, w * sc, h * sc)); src = c.getImage();
+    } else { await info("Ảnh không đúng", "Ảnh " + w + "×" + h + ", màn hình máy " + deviceKey() + ".\nHãy chọn ảnh CHỤP MÀN HÌNH của chính máy này (không phải ảnh nền gốc). Chưa cắt gì cả."); return; }
+  }
+  ensureDir(p(DIR, "shots")); fm.writeImage(shotPath(id), src);
+  cropRows(id, src, P);
+  const t = T.themes[id];
+  await info("Xong: " + t.name, "Thêm 2 widget Scriptable cỡ VỪA, chọn script Theme, nhập Tham số:\n\n• " + id + ":hud:" + ROW_LABEL[t.rows.hud] + "  → đặt ở " + ROW_VI[t.rows.hud] +
+    "\n• " + id + ":launch:" + ROW_LABEL[t.rows.launch] + "  → đặt ở " + ROW_VI[t.rows.launch] + "\n\nWidget phải nằm đúng hàng ghi trong tham số, nếu không nền sẽ lệch.");
+}
+
+async function adjustOffset() {
+  const st0 = settings(); const o = st0.offset || { dx: 0, dy: 0 };
+  const a = new Alert(); a.title = "Chỉnh lệch nền (pixel)"; a.message = "Chỉ dùng khi nền widget lệch so với hình nền. Dương = dịch phải/xuống. Bước nhỏ: 3–10.";
+  a.addTextField("dx", String(o.dx)); a.addTextField("dy", String(o.dy)); a.addAction("Lưu và cắt lại"); a.addCancelAction("Huỷ");
+  if ((await a.present()) !== 0) return;
+  st0.offset = { dx: parseInt(a.textFieldValue(0), 10) || 0, dy: parseInt(a.textFieldValue(1), 10) || 0 }; saveSettings(st0);
+  const P = devicePos(); let n = 0;
+  if (P) for (const id of Object.keys(T.themes)) if (fm.fileExists(shotPath(id))) { cropRows(id, fm.readImage(shotPath(id)), P); n++; }
+  await info("Đã lưu", "Lệch dx=" + st0.offset.dx + ", dy=" + st0.offset.dy + ". Đã cắt lại " + n + " theme. Widget cập nhật ở lần làm mới tới.");
+}
+
+async function updateLocation() {
+  try {
+    Location.setAccuracyToThreeKilometers();
+    const loc = await withTimeout(Location.current(), 8, null);
+    if (!loc) throw new Error("timeout");
+    writeJSON("loc.json", { lat: loc.latitude, lon: loc.longitude, at: Date.now() });
+    try { fm.remove(p(DIR, "weather.json")); } catch (e) {}
+    await info("Đã lưu vị trí", loc.latitude.toFixed(2) + ", " + loc.longitude.toFixed(2) + "\nWidget thời tiết dùng vị trí này cho tới khi bạn cập nhật lại.");
+  } catch (e) { await info("Không lấy được vị trí", "Kiểm tra Cài đặt → Quyền riêng tư → Dịch vụ định vị → Scriptable → Khi dùng app. Widget sẽ dùng tọa độ mặc định."); }
+}
+
+async function askCalendar() {
+  try { await CalendarEvent.today([]); await info("Lịch", "Đã có quyền đọc Lịch."); }
+  catch (e) { await info("Lịch", "Chưa có quyền. Vào Cài đặt → Scriptable → Lịch để bật."); }
+}
+
+async function fontTest() {
+  const sample = "Đường ướt, trời ẩm ướt — Ỷ Ỹ Ợ Ữ";
+  const fonts = [["Didot", 20], ["Didot-Italic", 20], ["Baskerville", 18], ["Baskerville-Italic", 18], ["Baskerville-SemiBold", 18]];
+  const tb = new UITable(); tb.showSeparators = true;
+  const head = new UITableRow(); head.isHeader = true; head.addText("Kiểm tra dấu tiếng Việt", "Dấu bị lệch/mất ở dòng nào thì chọn font hệ thống ở cuối"); tb.addRow(head);
+  for (const [n, sz] of fonts) { const r = new UITableRow(); r.height = 64; const c = r.addText(sample, n); c.titleFont = new Font(n, sz); c.subtitleFont = Font.systemFont(11); tb.addRow(r); }
+  const sys = new UITableRow(); sys.height = 64; const c2 = sys.addText(sample, "Font hệ thống (dự phòng)"); c2.titleFont = Font.systemFont(18); tb.addRow(sys);
+  const mode = settings().fontMode || "serif";
+  [["serif", "Dùng font có chân (Didot/Baskerville)"], ["system", "Dùng font hệ thống cho theme Frieren"]].forEach(([m, label]) => {
+    const r = new UITableRow(); r.addText((mode === m ? "✓ " : "   ") + label); r.dismissOnSelect = true;
+    r.onSelect = () => { const st0 = settings(); st0.fontMode = m; saveSettings(st0); }; tb.addRow(r);
+  });
+  await tb.present();
+}
+
+async function appTest() {
+  const apps = T.apps || [], ov = settings().appOverride || {};
+  const tb = new UITable(); tb.showSeparators = true;
+  const head = new UITableRow(); head.isHeader = true; head.addText("Kiểm tra nút mở app", "Chạm để thử. App không mở → chạm 'Dùng dự phòng'"); tb.addRow(head);
+  for (const a of apps) {
+    const cur = ov[a.label] || a.url;
+    const r = new UITableRow(); r.height = 56; r.addText((a.unsure ? "⚠ " : "") + a.label, cur); r.dismissOnSelect = false;
+    r.onSelect = () => { Safari.open(cur); }; tb.addRow(r);
+    if (a.fallback) {
+      const f = new UITableRow(); const using = ov[a.label] === a.fallback;
+      f.addText(using ? "   ↺ Đang dùng dự phòng · chạm để về mặc định" : "   ↳ Dùng dự phòng: " + a.fallback);
+      f.dismissOnSelect = true; f.onSelect = () => { const st0 = settings(); st0.appOverride = st0.appOverride || {}; if (using) delete st0.appOverride[a.label]; else st0.appOverride[a.label] = a.fallback; saveSettings(st0); };
+      tb.addRow(f);
+    }
+  }
+  await tb.present();
 }
 
 function paramGuide() {
   return Object.keys(T.themes).map(id => {
     const t = T.themes[id];
-    return t.name + "\n  hàng " + t.rows.hud + ": " + id + ":hud:" + t.rows.hud + "\n  hàng " + t.rows.launch + ": " + id + ":launch:" + t.rows.launch;
+    return t.name + "\n  " + id + ":hud:" + ROW_LABEL[t.rows.hud] + " (" + ROW_VI[t.rows.hud] + ")\n  " + id + ":launch:" + ROW_LABEL[t.rows.launch] + " (" + ROW_VI[t.rows.launch] + ")";
   }).join("\n\n");
 }
 
 async function appMenu() {
-  const scr = Device.screenResolution();
-  const ver = "engine " + ENGINE_VERSION + " · themes " + T.version + " · loader " + ENV.loaderVersion + " · " + ENV.src;
-  const opts = ["Cài nền cho theme", "Xem trước widget", "Cấp quyền Lịch + Vị trí", "Danh sách tham số widget"];
-  const i = await pick("ThemeKit", ver + (scr.height !== PHONE_H ? "\n⚠ Màn hình " + scr.width + "×" + scr.height + " chưa được hỗ trợ" : ""), opts);
+  const P = devicePos();
+  const ver = "Phiên bản " + T.version + " (engine " + ENGINE_VERSION + ", loader " + ENV.loaderVersion + ", " + ENV.src + ")\nMáy: " + (P ? P.model : "CHƯA HỖ TRỢ " + deviceKey());
+  const opts = ["1. Cài nền từ ảnh chụp màn hình", "2. Cập nhật vị trí (thời tiết)", "3. Cấp quyền Lịch", "4. Kiểm tra font chữ", "5. Kiểm tra nút mở app", "6. Xem trước widget", "7. Tham số widget", "8. Chỉnh lệch nền"];
+  const i = await pick("ThemeKit", ver, opts);
   if (i === 0) await installBackground();
-  if (i === 1) {
+  if (i === 1) await updateLocation();
+  if (i === 2) await askCalendar();
+  if (i === 3) await fontTest();
+  if (i === 4) await appTest();
+  if (i === 5) {
     const ids = Object.keys(T.themes); const t = await pick("Theme", null, ids.map(id => T.themes[id].name)); if (t < 0) return;
     const k = await pick("Loại widget", null, ["HUD (giờ, pin, thời tiết)", "Nút mở app"]); if (k < 0) return;
-    const w = await makeWidget(ids[t] + ":" + (k ? "launch" : "hud")); await w.presentMedium();
+    const th = T.themes[ids[t]], kind = k ? "launch" : "hud";
+    const w = await makeWidget(ids[t] + ":" + kind + ":" + ROW_LABEL[th.rows[kind]]); await w.presentMedium();
   }
-  if (i === 2) await askPermissions();
-  if (i === 3) await info("Tham số widget", paramGuide());
+  if (i === 6) await info("Tham số widget", paramGuide());
+  if (i === 7) await adjustOffset();
 }
 
 // ---------------- chạy ----------------
