@@ -1,7 +1,7 @@
 // ThemeKit engine — chạy bên trong loader "Theme" trên iPhone.
 // Không sửa trực tiếp trên điện thoại: sửa trên PC rồi push lên GitHub.
 // Biến ENV do loader truyền vào: { themes, src, dir, args, config, loaderVersion }
-const ENGINE_VERSION = "1.4.1";
+const ENGINE_VERSION = "1.4.2";
 const T = ENV.themes;
 const fm = FileManager.local();
 const DIR = ENV.dir;
@@ -666,14 +666,23 @@ async function pick(title, msg, options) {
 async function info(title, msg) { const a = new Alert(); a.title = title; a.message = msg; a.addAction("OK"); await a.present(); }
 async function confirm(title, msg, yes) { const a = new Alert(); a.title = title; a.message = msg; a.addAction(yes || "Tiếp tục"); a.addCancelAction("Huỷ"); return (await a.present()) === 0; }
 function shotPath(id) { return p(DIR, "shots", id + ".jpg"); }
+// Ghi ảnh: thử writeImage, nếu lỗi thì ghi bằng Data PNG/JPEG; trả về true/false thay vì làm dừng cả quy trình
+function saveImage(path, img, jpeg) {
+  try { if (fm.fileExists(path)) fm.remove(path); } catch (e) {}
+  try { fm.writeImage(path, img); return true; } catch (e1) {
+    try { fm.write(path, jpeg ? Data.fromJPEG(img) : Data.fromPNG(img)); return true; } catch (e2) { console.log("save " + path + ": " + e1 + " / " + e2); return false; }
+  }
+}
 
 // Cắt 3 hàng widget Vừa từ ẢNH CHỤP MÀN HÌNH trang trống (chế độ rung icon).
 function cropRows(id, img, P) {
   const o = settings().offset || { dx: 0, dy: 0 };
   ensureDir(p(DIR, "bg", id));
+  let ok = 0;
   for (let r = 1; r <= 3; r++) {
-    fm.writeImage(bgPath(id, "medium", r), cropFrom(img, P.left + o.dx, P.rows[r - 1] + o.dy, P.medium, P.small));
+    if (saveImage(bgPath(id, "medium", r), cropFrom(img, P.left + o.dx, P.rows[r - 1] + o.dy, P.medium, P.small), false)) ok++;
   }
+  return ok;
 }
 
 async function installBackground() {
@@ -697,8 +706,9 @@ async function installBackground() {
       const c = new DrawContext(); c.size = new Size(w * sc, h * sc); c.respectScreenScale = false; c.drawImageInRect(img, new Rect(0, 0, w * sc, h * sc)); src = c.getImage();
     } else { await info("Ảnh không đúng", "Ảnh " + w + "×" + h + ", màn hình máy " + deviceKey() + ".\nHãy chọn ảnh CHỤP MÀN HÌNH của chính máy này (không phải ảnh nền gốc). Chưa cắt gì cả."); return; }
   }
-  ensureDir(p(DIR, "shots")); fm.writeImage(shotPath(id), src);
-  cropRows(id, src, P);
+  const n = cropRows(id, src, P);
+  if (n < 3) { await info("Không ghi được nền", "Chỉ lưu được " + n + "/3 mảnh nền. Kiểm tra bộ nhớ trống của iPhone rồi chạy lại mục 1."); return; }
+  ensureDir(p(DIR, "shots")); saveImage(shotPath(id), src, true); // để dành cho mục 8, lỗi cũng không sao
   const t = T.themes[id];
   await info("Xong: " + t.name, "Thêm 2 widget Scriptable cỡ VỪA, chọn script Theme, nhập Tham số:\n\n• " + id + ":hud:" + ROW_LABEL[t.rows.hud] + "  → đặt ở " + ROW_VI[t.rows.hud] +
     "\n• " + id + ":launch:" + ROW_LABEL[t.rows.launch] + "  → đặt ở " + ROW_VI[t.rows.launch] + "\n\nWidget phải nằm đúng hàng ghi trong tham số, nếu không nền sẽ lệch.");
