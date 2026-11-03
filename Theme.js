@@ -8,7 +8,7 @@ const REPO = "lethanhtrung95ee/iphone-themes";
 const BRANCH = "main";
 const PIN = "";            // để trống = bản mới nhất. Muốn quay về bản cũ: gõ "1.3.0" (thư mục releases/1.3.0)
 const CHECK_MIN = 60;      // bao lâu kiểm tra phiên bản một lần (phút)
-const LOADER_VERSION = "2";
+const LOADER_VERSION = "2.1";
 
 const BASE = "https://raw.githubusercontent.com/" + REPO + "/" + BRANCH + "/" + (PIN ? "releases/" + PIN + "/" : "");
 const fm = FileManager.local();
@@ -22,16 +22,20 @@ async function fetchText(name, timeoutSec) {
   if (!r.response || r.response.statusCode !== 200 || s.length < 10) throw new Error(name + " HTTP " + (r.response && r.response.statusCode));
   return s;
 }
-function readMeta() { try { return JSON.parse(fm.readString(P("meta.json"))); } catch (e) { return { checkedAt: 0, version: "", pin: "" }; } }
+function readMeta() {
+  const d = { checkedAt: 0, version: "", pin: "" };
+  try { if (!fm.fileExists(P("meta.json"))) return d; const m = JSON.parse(fm.readString(P("meta.json"))); return m && typeof m === "object" ? Object.assign(d, m) : d; } catch (e) { return d; }
+}
 
 async function sync(force) {
   const meta = readMeta(), hasCache = fm.fileExists(P("engine.js")) && fm.fileExists(P("themes.json"));
   const due = force || !hasCache || meta.pin !== PIN || Date.now() - meta.checkedAt > CHECK_MIN * 60000;
   if (!due) return "cache";
   try {
-    const remote = JSON.parse(await fetchText("version.json", 4)).version;
+    const tv = force ? 15 : 4, tf = force ? 20 : 8;
+    const remote = JSON.parse(await fetchText("version.json", tv)).version;
     if (remote !== meta.version || !hasCache || meta.pin !== PIN) {
-      const eng = await fetchText("engine.js", 6), th = await fetchText("themes.json", 6);
+      const eng = await fetchText("engine.js", tf), th = await fetchText("themes.json", tf);
       JSON.parse(th); // kiểm tra hợp lệ trước khi ghi đè
       fm.writeString(P("engine.js"), eng); fm.writeString(P("themes.json"), th);
     }

@@ -1,7 +1,7 @@
 // ThemeKit engine — chạy bên trong loader "Theme" trên iPhone.
 // Không sửa trực tiếp trên điện thoại: sửa trên PC rồi push lên GitHub.
 // Biến ENV do loader truyền vào: { themes, src, dir, args, config, loaderVersion }
-const ENGINE_VERSION = "1.4.0";
+const ENGINE_VERSION = "1.4.1";
 const T = ENV.themes;
 const fm = FileManager.local();
 const DIR = ENV.dir;
@@ -21,7 +21,8 @@ function C(hex, a) { return new Color(hex, a === undefined ? 1 : a); }
 function p(...a) { return fm.joinPath(...a); }
 function ensureDir(d) { if (!fm.fileExists(d)) fm.createDirectory(d, true); }
 function bgPath(theme, size, row) { return p(DIR, "bg", theme, size + "-" + row + ".png"); }
-function readJSON(name, dflt) { try { return JSON.parse(fm.readString(p(DIR, name))); } catch (e) { return dflt; } }
+// Scriptable: readString trả về null (không ném lỗi) khi file chưa có → phải tự kiểm tra
+function readJSON(name, dflt) { try { const f = p(DIR, name); if (!fm.fileExists(f)) return dflt; const v = JSON.parse(fm.readString(f)); return v == null ? dflt : v; } catch (e) { return dflt; } }
 function writeJSON(name, v) { try { fm.writeString(p(DIR, name), JSON.stringify(v)); } catch (e) {} }
 function pad2(n) { return String(n).padStart(2, "0"); }
 function hhmm(ms) { const d = new Date(ms); return pad2(d.getHours()) + ":" + pad2(d.getMinutes()); }
