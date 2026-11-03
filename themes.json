@@ -1,5 +1,5 @@
 {
-  "version": "1.4.2",
+  "version": "1.4.3",
   "_note": "Sửa trên PC → tăng version (ở đây VÀ trong version.json) → Commit + Push bằng GitHub Desktop.",
   "weather": {
     "lat": 41.8781,

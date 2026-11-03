@@ -1,7 +1,7 @@
 // ThemeKit engine — chạy bên trong loader "Theme" trên iPhone.
 // Không sửa trực tiếp trên điện thoại: sửa trên PC rồi push lên GitHub.
 // Biến ENV do loader truyền vào: { themes, src, dir, args, config, loaderVersion }
-const ENGINE_VERSION = "1.4.2";
+const ENGINE_VERSION = "1.4.3";
 const T = ENV.themes;
 const fm = FileManager.local();
 const DIR = ENV.dir;
@@ -26,8 +26,8 @@ function readJSON(name, dflt) { try { const f = p(DIR, name); if (!fm.fileExists
 function writeJSON(name, v) { try { fm.writeString(p(DIR, name), JSON.stringify(v)); } catch (e) {} }
 function pad2(n) { return String(n).padStart(2, "0"); }
 function hhmm(ms) { const d = new Date(ms); return pad2(d.getHours()) + ":" + pad2(d.getMinutes()); }
-async function withTimeout(promise, ms, fallback) {
-  let t; const timer = new Promise(res => { t = Timer.schedule(ms, false, () => res(fallback)); });
+async function withTimeout(promise, sec, fallback) { // sec = giây; Timer.schedule nhận mili-giây
+  let t; const timer = new Promise(res => { t = Timer.schedule(sec * 1000, false, () => res(fallback)); });
   const r = await Promise.race([promise.catch(() => fallback), timer]); try { t.invalidate(); } catch (e) {} return r;
 }
 // cài đặt riêng trên máy (font, URL dự phòng, chỉnh lệch nền)
@@ -269,7 +269,7 @@ const FX = {
 const STYLE = {
   cyber: {
     frame(c, W, H, k, th, kind) {
-      const col = th.colors, cut = 14 * k, i = 1.5 * k;
+      const col = th.colors, cut = 14 * k, i = 5 * k;
       const shape = () => {
         const pa = new Path(), x = i, y = i, w = W - 2 * i, h = H - 2 * i, tab = w * 0.6;
         pa.move(new Point(x, y + cut)); pa.addLine(new Point(x + cut, y)); pa.addLine(new Point(x + tab, y));
@@ -620,10 +620,12 @@ async function launchWidget(themeId, th, row) {
       if (a.url) cell.url = a.url;
       cell.addSpacer(15);
       const sym = SFSymbol.named(a.sf || "app.fill");
-      const im = cell.addImage((sym || SFSymbol.named("app.fill")).image); im.imageSize = new Size(22, 22);
+      const ir = cell.addStack(); ir.size = new Size(g.cellW, 22); ir.addSpacer();
+      const im = ir.addImage((sym || SFSymbol.named("app.fill")).image); im.imageSize = new Size(22, 22); ir.addSpacer();
       im.tintColor = st === "cyber" ? C((r * 4 + c) % 2 ? col.accent2 : col.accent) : st === "fantasy" ? C(col.text) : C(col.accent);
       cell.addSpacer(st === "fantasy" ? 12 : 10);
-      const lb = cell.addText(st === "fantasy" ? a.label.charAt(0) + a.label.slice(1).toLowerCase() : a.label);
+      const lr = cell.addStack(); lr.size = new Size(g.cellW, 12); lr.addSpacer();
+      const lb = lr.addText(st === "fantasy" ? a.label.charAt(0) + a.label.slice(1).toLowerCase() : a.label); lr.addSpacer();
       lb.font = F.icon; lb.textColor = C(col.text); lb.lineLimit = 1; lb.minimumScaleFactor = 0.7; lb.centerAlignText();
       if (st !== "minimal") { lb.shadowColor = C("#000000", 0.8); lb.shadowRadius = 3; lb.shadowOffset = new Point(0, 0); }
       cell.addSpacer();
@@ -698,7 +700,14 @@ async function installBackground() {
     "3. Chụp màn hình (nút nguồn + tăng âm lượng).\n" +
     "4. Quay lại đây, bấm Tiếp tục và chọn ảnh vừa chụp.", "Chọn ảnh chụp");
   if (!ok) return;
-  const img = await Photos.fromLibrary();
+  let img = null;
+  try { img = await Photos.latestScreenshot(); } catch (e) {}
+  if (img) {
+    const a = new Alert(); a.title = "Dùng ảnh chụp màn hình mới nhất?"; a.message = "Đây phải là ảnh chụp TRANG TRỐNG của Home Screen, chụp ngay sau khi đặt hình nền " + T.themes[id].name + ".";
+    a.addAction("Dùng ảnh mới nhất"); a.addAction("Tự chọn ảnh khác"); a.addCancelAction("Huỷ");
+    const r = await a.present(); if (r === -1) return; if (r === 1) img = null;
+  }
+  if (!img) img = await Photos.fromLibrary();
   const w = Math.round(img.size.width), h = Math.round(img.size.height), sc = Device.screenScale();
   let src = img;
   if (w + "x" + h !== deviceKey()) {
